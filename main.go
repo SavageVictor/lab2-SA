@@ -1,74 +1,85 @@
 package main
 
 import (
+	"flag"
 	"fmt"
-	"math"
-	"strconv"
+	"io/ioutil"
+	"os"
 	"strings"
 )
 
-type Stack []float64
-
-func (s *Stack) Push(v float64) {
-	*s = append(*s, v)
+type ComputeHandler struct {
+	Input       string
+	Output      string
+	IsFileInput bool
 }
 
-func (s *Stack) Pop() (float64, bool) {
-	if len(*s) == 0 {
-		return 0, false
-	}
-	res := (*s)[len(*s)-1]
-	*s = (*s)[:len(*s)-1]
-	return res, true
-}
+func (c *ComputeHandler) Compute() error {
+	var inputExpression string
 
-func evaluatePostfix(expression string) (float64, error) {
-	tokens := strings.Fields(expression)
-	stack := Stack{}
-
-	for _, token := range tokens {
-		if num, err := strconv.ParseFloat(token, 64); err == nil {
-			stack.Push(num)
-		} else {
-			b, okB := stack.Pop()
-			a, okA := stack.Pop()
-
-			if !okA || !okB {
-				return 0, fmt.Errorf("invalid postfix expression")
-			}
-
-			switch token {
-			case "+":
-				stack.Push(a + b)
-			case "-":
-				stack.Push(a - b)
-			case "*":
-				stack.Push(a * b)
-			case "/":
-				stack.Push(a / b)
-			case "^":
-				stack.Push(math.Pow(a, b))
-			default:
-				return 0, fmt.Errorf("unknown operator: %s", token)
-			}
+	if c.IsFileInput {
+		content, err := ioutil.ReadFile(c.Input)
+		if err != nil {
+			return fmt.Errorf("error reading input file: %v", err)
 		}
+		inputExpression = strings.TrimSpace(string(content))
+	} else {
+		inputExpression = c.Input
 	}
 
-	if len(stack) != 1 {
-		return 0, fmt.Errorf("invalid postfix expression")
+	result, err := EvaluatePostfix(inputExpression)
+	if err != nil {
+		return fmt.Errorf("error evaluating expression: %v", err)
 	}
 
-	res, _ := stack.Pop()
-	return res, nil
+	if c.Output != "" {
+		err := ioutil.WriteFile(c.Output, []byte(fmt.Sprintf("%.2f", result)), 0644)
+		if err != nil {
+			return fmt.Errorf("error writing output file: %v", err)
+		}
+	} else {
+		fmt.Printf("The result of the postfix expression '%s' is: %.2f\n", inputExpression, result)
+	}
+
+	return nil
 }
 
 func main() {
-	expression := "3 8 + 2 * 2 + 3 ^"
-	result, err := evaluatePostfix(expression)
+	expression := flag.String("e", "", "Postfix expression to evaluate")
+	inputFile := flag.String("f", "", "Input file containing a postfix expression")
+	outputFile := flag.String("o", "", "Output file to write the result")
 
-	if err != nil {
-		fmt.Println("Error:", err)
+	flag.Parse()
+
+	if *expression == "" && *inputFile == "" {
+		fmt.Println("Error: Please provide an expression using -e or an input file using -f")
+		os.Exit(1)
+	}
+
+	if *expression != "" && *inputFile != "" {
+		fmt.Println("Error: Please provide either an expression using -e or an input file using -f, not both")
+		os.Exit(1)
+	}
+
+	handler := &ComputeHandler{
+		Output: *outputFile,
+	}
+
+	if *inputFile != "" {
+		handler.Input = *inputFile
+		handler.IsFileInput = true
 	} else {
-		fmt.Printf("The result of the postfix expression '%s' is: %.2f\n", expression, result)
+		handler.Input = *expression
+		handler.IsFileInput = false
+	}
+
+	err := handler.Compute()
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	if handler.Output != "" {
+		fmt.Printf("The result has been written to %s\n", handler.Output)
 	}
 }
