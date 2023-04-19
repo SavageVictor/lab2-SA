@@ -1,1 +1,0 @@
-The result of the postfix expression '3 4 + 2 * 1 + 2 ^' is: 225.00

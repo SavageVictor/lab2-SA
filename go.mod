@@ -1,4 +1,4 @@
-module lab2
+module github.com/SavageVictor/lab2-SA
 
 go 1.20
 
